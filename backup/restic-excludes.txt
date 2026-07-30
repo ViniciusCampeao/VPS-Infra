@@ -1,0 +1,12 @@
+**/node_modules
+**/.git
+**/.next
+**/dist
+**/build
+/data/home/.cache
+/data/home/.npm
+/data/home/.local
+/data/home/.docker
+/data/home/.claude
+/data/home/.claude.json
+/data/home/shorts-pipeline/output

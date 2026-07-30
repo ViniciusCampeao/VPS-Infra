@@ -1,0 +1,5 @@
+.env
+*.pem
+*.dump
+backup/dumps/
+backup/backup.log

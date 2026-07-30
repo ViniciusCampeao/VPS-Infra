@@ -1,0 +1,6 @@
+:3001 {
+	basic_auth {
+		{$GRAFANA_PROXY_USER} {$GRAFANA_PROXY_PASS_HASH}
+	}
+	reverse_proxy grafana:3000
+}

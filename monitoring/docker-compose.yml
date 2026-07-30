@@ -1,0 +1,137 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    ports:
+      - "127.0.0.1:9090:9090"
+    mem_limit: 512m
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://grafana.kernel-cloud.online
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - monitoring
+    mem_limit: 256m
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - prometheus
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: grafana-proxy
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - monitoring
+    ports:
+      - "127.0.0.1:3001:3001"
+    mem_limit: 64m
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/ -T 3 || true"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - grafana
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring
+    mem_limit: 128m
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    networks:
+      - monitoring
+    mem_limit: 256m
+    devices: []
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - monitoring
+      - farma_internal
+    mem_limit: 64m
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: redis-exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis://farma-redis:6379
+    networks:
+      - monitoring
+      - farma_internal
+    mem_limit: 64m
+
+networks:
+  monitoring:
+    driver: bridge
+  farma_internal:
+    external: true
+    name: recompra-farma_internal
+
+volumes:
+  prometheus_data:
+  grafana_data:
